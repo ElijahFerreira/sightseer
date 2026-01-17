@@ -18,7 +18,7 @@
 ### Day 0: Project Setup (1-2 hours)
 
 - [x] **1. Project Setup** ✅
-  - [ ] Initialize git repo *(deferred - will add later)*
+  - [x] Initialize git repo
   - [x] Set up Next.js frontend
   - [x] Set up backend (using Next.js API routes)
   - [x] Configure environment variables (GEMINI_API_KEY)

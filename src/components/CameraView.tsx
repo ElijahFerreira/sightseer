@@ -1,13 +1,26 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { analyzeScene, SceneAnalysis } from '@/lib/api';
+
+// Generate a simple session ID
+function getSessionId(): string {
+  if (typeof window === 'undefined') return 'server';
+  let id = sessionStorage.getItem('sightseer_session');
+  if (!id) {
+    id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    sessionStorage.setItem('sightseer_session', id);
+  }
+  return id;
+}
 
 interface CameraViewProps {
   onPermissionChange: (granted: boolean) => void;
   onError: (error: string) => void;
+  onAnalysis?: (analysis: SceneAnalysis) => void;
 }
 
-export default function CameraView({ onPermissionChange, onError }: CameraViewProps) {
+export default function CameraView({ onPermissionChange, onError, onAnalysis }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isReady, setIsReady] = useState(false);
@@ -16,6 +29,7 @@ export default function CameraView({ onPermissionChange, onError }: CameraViewPr
   // Initialize camera
   useEffect(() => {
     let stream: MediaStream | null = null;
+    let isMounted = true;
 
     async function initCamera() {
       try {
@@ -29,18 +43,35 @@ export default function CameraView({ onPermissionChange, onError }: CameraViewPr
           audio: false,
         });
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          setIsReady(true);
-          onPermissionChange(true);
+        // Check if component is still mounted
+        if (!isMounted || !videoRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
         }
+
+        videoRef.current.srcObject = stream;
+        
+        // Use onloadedmetadata to ensure video is ready before playing
+        videoRef.current.onloadedmetadata = async () => {
+          if (isMounted && videoRef.current) {
+            try {
+              await videoRef.current.play();
+              setIsReady(true);
+              onPermissionChange(true);
+            } catch (playErr) {
+              // Ignore AbortError from unmount
+              if (playErr instanceof Error && playErr.name !== 'AbortError') {
+                console.error('Play error:', playErr);
+              }
+            }
+          }
+        };
       } catch (err) {
         console.error('Camera error:', err);
         if (err instanceof Error) {
           if (err.name === 'NotAllowedError') {
             onPermissionChange(false);
-          } else {
+          } else if (err.name !== 'AbortError') {
             onError(`Camera error: ${err.message}`);
           }
         }
@@ -51,6 +82,7 @@ export default function CameraView({ onPermissionChange, onError }: CameraViewPr
 
     // Cleanup
     return () => {
+      isMounted = false;
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
@@ -93,20 +125,25 @@ export default function CameraView({ onPermissionChange, onError }: CameraViewPr
         throw new Error('Failed to capture frame');
       }
 
-      // TODO: Send frame to /api/analyze endpoint
-      console.log('Frame captured, length:', frameData.length);
-      
-      // Simulate API call for now
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Send frame to /api/analyze endpoint
+      const analysis = await analyzeScene({
+        image: frameData,
+        session_id: getSessionId(),
+      });
 
-      // TODO: Handle response and update overlays
+      console.log('Analysis received:', analysis.scene_title);
+
+      // Pass analysis to parent component
+      if (onAnalysis) {
+        onAnalysis(analysis);
+      }
     } catch (err) {
       console.error('Scan error:', err);
       onError(err instanceof Error ? err.message : 'Scan failed');
     } finally {
       setIsScanning(false);
     }
-  }, [isScanning, captureFrame, onError]);
+  }, [isScanning, captureFrame, onError, onAnalysis]);
 
   return (
     <div className="camera-container">

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+// import { analyzeSceneWithGemini, SceneAnalysis } from '@/lib/gemini';
+import { analyzeSceneWithOpenAI, SceneAnalysis } from '@/lib/openai';
 
 // Session storage (in-memory for now)
 const sessions = new Map<string, SessionData>();
@@ -9,15 +11,6 @@ interface SessionData {
   lastScene: SceneAnalysis | null;
   createdAt: Date;
   updatedAt: Date;
-}
-
-interface SceneAnalysis {
-  scene_title: string;
-  scene_summary: string;
-  narration: string;
-  pois: POI[];
-  suggested_questions: string[];
-  safety_notes: string[];
 }
 
 interface POI {
@@ -53,34 +46,19 @@ export async function POST(request: NextRequest) {
       sessions.set(session_id, session);
     }
 
-    // TODO: Call Gemini API with the image
-    // For now, return a mock response
-    const mockResponse: SceneAnalysis = {
-      scene_title: 'Demo Scene',
-      scene_summary: 'This is a placeholder response. Gemini integration coming next!',
-      narration: 'Point your camera at a landmark to see the AI analysis.',
-      pois: [
-        {
-          id: 'demo_poi_1',
-          label: 'Sample Point',
-          why_it_matters: 'This is where a real point of interest would appear.',
-          screen_anchor: { x: 0.5, y: 0.3 },
-          confidence: 0.85,
-        },
-      ],
-      suggested_questions: [
-        'What is this place?',
-        'When was it built?',
-        'What makes it significant?',
-      ],
-      safety_notes: ['This is a demo response - Gemini integration pending.'],
-    };
+    // Call OpenAI API with the image
+    const analysis = await analyzeSceneWithOpenAI(image, {
+      locationHint: location_hint,
+      interests,
+      sessionMemory: session.memory,
+    });
 
-    // Update session
-    session.lastScene = mockResponse;
+    // Update session with summary of this scene
+    session.memory.push(`Saw: ${analysis.scene_title} - ${analysis.scene_summary}`);
+    session.lastScene = analysis;
     session.updatedAt = new Date();
 
-    return NextResponse.json(mockResponse);
+    return NextResponse.json(analysis);
   } catch (error) {
     console.error('Analyze error:', error);
     return NextResponse.json(
