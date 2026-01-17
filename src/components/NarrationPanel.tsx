@@ -1,20 +1,30 @@
 'use client';
 
 import { SceneAnalysis } from '@/lib/api';
+import QuestionInput from './QuestionInput';
 
 interface NarrationPanelProps {
   analysis: SceneAnalysis;
   isScanning?: boolean;
+  isAskingQuestion?: boolean;
+  lastAnswer?: string | null;
+  suggestedQuestions?: string[];
   onScan: () => void;
-  onQuestionTap?: (question: string) => void;
+  onAskQuestion: (question: string) => void;
 }
 
 export default function NarrationPanel({ 
   analysis, 
   isScanning = false,
+  isAskingQuestion = false,
+  lastAnswer = null,
+  suggestedQuestions,
   onScan,
-  onQuestionTap 
+  onAskQuestion 
 }: NarrationPanelProps) {
+  // Use provided suggestions or fall back to analysis suggestions
+  const questions = suggestedQuestions || analysis.suggested_questions;
+
   return (
     <div className="narration-panel pt-6 pb-6">
       <div className="px-4 space-y-4">
@@ -25,26 +35,34 @@ export default function NarrationPanel({
           </h2>
         </div>
 
-        {/* Narration */}
+        {/* Narration or Last Answer */}
         <p className="text-sm text-white/90 text-center leading-relaxed">
-          {analysis.narration}
+          {lastAnswer || analysis.narration}
         </p>
 
-        {/* Safety notes (if any) */}
-        {analysis.safety_notes.length > 0 && analysis.safety_notes[0] && (
+        {/* Safety notes (if any and no answer shown) */}
+        {!lastAnswer && analysis.safety_notes.length > 0 && analysis.safety_notes[0] && (
           <p className="text-xs text-amber-400/80 text-center italic">
             ⚠️ {analysis.safety_notes[0]}
           </p>
         )}
 
+        {/* Question Input */}
+        <QuestionInput 
+          onSubmit={onAskQuestion}
+          isLoading={isAskingQuestion}
+          placeholder="Ask about what you see..."
+        />
+
         {/* Suggested Questions */}
-        {analysis.suggested_questions.length > 0 && (
+        {questions.length > 0 && (
           <div className="flex flex-wrap justify-center gap-2">
-            {analysis.suggested_questions.slice(0, 3).map((question, idx) => (
+            {questions.slice(0, 3).map((question, idx) => (
               <button
                 key={idx}
                 className="question-chip"
-                onClick={() => onQuestionTap?.(question)}
+                onClick={() => onAskQuestion(question)}
+                disabled={isAskingQuestion}
               >
                 {question}
               </button>
@@ -56,7 +74,7 @@ export default function NarrationPanel({
         <div className="flex justify-center pt-2">
           <button
             onClick={onScan}
-            disabled={isScanning}
+            disabled={isScanning || isAskingQuestion}
             className={`scan-button ${isScanning ? 'scanning' : ''}`}
           >
             {isScanning ? (
