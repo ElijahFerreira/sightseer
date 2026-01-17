@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import CameraView from '@/components/CameraView';
+import { useState, useEffect, useRef } from 'react';
+import CameraView, { CameraViewRef } from '@/components/CameraView';
+import OverlayPins from '@/components/OverlayPins';
+import NarrationPanel from '@/components/NarrationPanel';
 import { SceneAnalysis } from '@/lib/api';
 
 export default function Home() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<SceneAnalysis | null>(null);
+  const cameraRef = useRef<CameraViewRef>(null);
 
   // Check if we're on a secure context (required for camera)
   useEffect(() => {
@@ -55,20 +58,29 @@ export default function Home() {
   return (
     <main className="h-dvh">
       <CameraView
+        ref={cameraRef}
         onPermissionChange={setHasPermission}
         onError={setError}
         onAnalysis={setAnalysis}
+        hasAnalysis={!!analysis}
       />
       
-      {/* Debug: Show analysis result */}
+      {/* POI Overlay Pins */}
+      {analysis && analysis.pois.length > 0 && (
+        <OverlayPins 
+          pois={analysis.pois}
+          onPoiTap={(poi) => console.log('Tapped POI:', poi.label)}
+        />
+      )}
+
+      {/* Narration Panel with results */}
       {analysis && (
-        <div className="fixed top-20 left-4 right-4 glass rounded-xl p-4 max-h-40 overflow-auto">
-          <h2 className="font-semibold text-emerald-400">{analysis.scene_title}</h2>
-          <p className="text-sm text-white/80 mt-1">{analysis.narration}</p>
-          <p className="text-xs text-white/50 mt-2">
-            {analysis.pois.length} POI(s) found
-          </p>
-        </div>
+        <NarrationPanel
+          analysis={analysis}
+          isScanning={cameraRef.current?.isScanning}
+          onScan={() => cameraRef.current?.triggerScan()}
+          onQuestionTap={(q) => console.log('Question tapped:', q)}
+        />
       )}
     </main>
   );
