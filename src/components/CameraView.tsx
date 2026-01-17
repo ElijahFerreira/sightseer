@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { analyzeScene, SceneAnalysis } from '@/lib/api';
 
 // Generate a simple session ID
@@ -18,9 +18,16 @@ interface CameraViewProps {
   onPermissionChange: (granted: boolean) => void;
   onError: (error: string) => void;
   onAnalysis?: (analysis: SceneAnalysis) => void;
+  hasAnalysis?: boolean;
 }
 
-export default function CameraView({ onPermissionChange, onError, onAnalysis }: CameraViewProps) {
+export interface CameraViewRef {
+  triggerScan: () => void;
+  isScanning: boolean;
+}
+
+const CameraView = forwardRef<CameraViewRef, CameraViewProps>(
+  function CameraView({ onPermissionChange, onError, onAnalysis, hasAnalysis = false }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isReady, setIsReady] = useState(false);
@@ -145,6 +152,12 @@ export default function CameraView({ onPermissionChange, onError, onAnalysis }: 
     }
   }, [isScanning, captureFrame, onError, onAnalysis]);
 
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    triggerScan: handleScan,
+    isScanning,
+  }), [handleScan, isScanning]);
+
   return (
     <div className="camera-container">
       {/* Camera video feed */}
@@ -159,56 +172,55 @@ export default function CameraView({ onPermissionChange, onError, onAnalysis }: 
       {/* Hidden canvas for frame capture */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Overlay container for POIs - to be implemented */}
-      <div className="overlay-container">
-        {/* POI pins will be rendered here */}
-      </div>
-
       {/* Top bar with title */}
-      <div className="fixed top-0 left-0 right-0 p-4 pt-[calc(var(--safe-area-inset-top)+1rem)]">
+      <div className="fixed top-0 left-0 right-0 p-4 pt-[calc(var(--safe-area-inset-top)+1rem)] z-10">
         <div className="glass rounded-xl px-4 py-2 inline-block">
           <h1 className="text-lg font-semibold">Sightseer</h1>
         </div>
       </div>
 
-      {/* Bottom controls */}
-      <div className="narration-panel pt-8 pb-6">
-        <div className="flex flex-col items-center gap-4 px-4">
-          {/* Status text */}
-          <p className="text-white/70 text-sm">
-            {!isReady
-              ? 'Starting camera...'
-              : isScanning
-              ? 'Analyzing scene...'
-              : 'Point at a landmark and tap Scan'}
-          </p>
+      {/* Initial scan prompt - only shown when no analysis yet */}
+      {!hasAnalysis && (
+        <div className="narration-panel pt-8 pb-6">
+          <div className="flex flex-col items-center gap-4 px-4">
+            {/* Status text */}
+            <p className="text-white/70 text-sm">
+              {!isReady
+                ? 'Starting camera...'
+                : isScanning
+                ? 'Analyzing scene...'
+                : 'Point at a landmark and tap Scan'}
+            </p>
 
-          {/* Scan button */}
-          <button
-            onClick={handleScan}
-            disabled={!isReady || isScanning}
-            className={`scan-button ${isScanning ? 'scanning' : ''}`}
-          >
-            {isScanning ? (
-              <div className="spinner" />
-            ) : (
-              <svg
-                className="w-8 h-8"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            )}
-          </button>
+            {/* Scan button */}
+            <button
+              onClick={handleScan}
+              disabled={!isReady || isScanning}
+              className={`scan-button ${isScanning ? 'scanning' : ''}`}
+            >
+              {isScanning ? (
+                <div className="spinner" />
+              ) : (
+                <svg
+                  className="w-8 h-8"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
-}
+});
+
+export default CameraView;
