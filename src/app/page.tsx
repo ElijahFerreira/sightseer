@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import CameraView, { CameraViewRef } from '@/components/CameraView';
 import OverlayPins from '@/components/OverlayPins';
 import NarrationPanel from '@/components/NarrationPanel';
+import ToastContainer, { useToasts } from '@/components/ToastContainer';
+import LoadingOverlay from '@/components/LoadingOverlay';
 import { SceneAnalysis, askQuestion, AskResponse } from '@/lib/api';
 
 // Get session ID
@@ -21,10 +23,12 @@ export default function Home() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<SceneAnalysis | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
   const [isAskingQuestion, setIsAskingQuestion] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<string | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[] | null>(null);
   const cameraRef = useRef<CameraViewRef>(null);
+  const { toasts, addToast, dismissToast } = useToasts();
 
   // Handle asking a question
   const handleAskQuestion = useCallback(async (question: string) => {
@@ -43,17 +47,38 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Failed to ask question:', err);
-      setError(err instanceof Error ? err.message : 'Failed to ask question');
+      const message = err instanceof Error ? err.message : 'Failed to ask question';
+      addToast(message, 'error');
     } finally {
       setIsAskingQuestion(false);
     }
-  }, [analysis, isAskingQuestion]);
+  }, [analysis, isAskingQuestion, addToast]);
 
   // Reset Q&A state when new analysis comes in
   const handleAnalysis = useCallback((newAnalysis: SceneAnalysis) => {
     setAnalysis(newAnalysis);
     setLastAnswer(null);
     setSuggestedQuestions(null);
+    setIsScanning(false);
+    addToast('Scene analyzed successfully!', 'success');
+  }, [addToast]);
+
+  // Handle scan errors gracefully
+  const handleError = useCallback((errorMessage: string) => {
+    // For non-critical errors, show toast instead of error screen
+    if (errorMessage.includes('Analysis') || errorMessage.includes('fetch')) {
+      addToast(errorMessage, 'error');
+      setIsScanning(false);
+    } else {
+      // Critical errors (camera, permissions) go to error screen
+      setError(errorMessage);
+    }
+  }, [addToast]);
+
+  // Trigger scan with loading state
+  const handleScan = useCallback(() => {
+    setIsScanning(true);
+    cameraRef.current?.triggerScan();
   }, []);
 
   // Check if we're on a secure context (required for camera)
@@ -104,10 +129,16 @@ export default function Home() {
       <CameraView
         ref={cameraRef}
         onPermissionChange={setHasPermission}
-        onError={setError}
+        onError={handleError}
         onAnalysis={handleAnalysis}
         hasAnalysis={!!analysis}
       />
+      
+      {/* Loading Overlay */}
+      <LoadingOverlay isVisible={isScanning} message="Analyzing scene..." />
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       
       {/* POI Overlay Pins */}
       {analysis && analysis.pois.length > 0 && (
@@ -121,11 +152,11 @@ export default function Home() {
       {analysis && (
         <NarrationPanel
           analysis={analysis}
-          isScanning={cameraRef.current?.isScanning}
+          isScanning={isScanning}
           isAskingQuestion={isAskingQuestion}
           lastAnswer={lastAnswer}
           suggestedQuestions={suggestedQuestions || undefined}
-          onScan={() => cameraRef.current?.triggerScan()}
+          onScan={handleScan}
           onAskQuestion={handleAskQuestion}
         />
       )}

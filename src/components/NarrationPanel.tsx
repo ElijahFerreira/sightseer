@@ -36,9 +36,24 @@ export default function NarrationPanel({
         </div>
 
         {/* Narration or Last Answer */}
-        <p className="text-sm text-white/90 text-center leading-relaxed">
-          {lastAnswer || analysis.narration}
-        </p>
+        {isAskingQuestion ? (
+          <div className="flex items-center justify-center gap-2 py-2">
+            <div className="flex gap-1">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
+            <span className="text-sm text-white/70">Thinking...</span>
+          </div>
+        ) : (
+          <p className="text-sm text-white/90 text-center leading-relaxed">
+            {lastAnswer || analysis.narration}
+          </p>
+        )}
 
         {/* Safety notes (if any and no answer shown) */}
         {!lastAnswer && analysis.safety_notes.length > 0 && analysis.safety_notes[0] && (
