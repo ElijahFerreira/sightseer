@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import CameraView from '@/components/CameraView';
+import { SceneAnalysis } from '@/lib/api';
 
 export default function Home() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<SceneAnalysis | null>(null);
 
   // Check if we're on a secure context (required for camera)
   useEffect(() => {
@@ -55,7 +57,19 @@ export default function Home() {
       <CameraView
         onPermissionChange={setHasPermission}
         onError={setError}
+        onAnalysis={setAnalysis}
       />
+      
+      {/* Debug: Show analysis result */}
+      {analysis && (
+        <div className="fixed top-20 left-4 right-4 glass rounded-xl p-4 max-h-40 overflow-auto">
+          <h2 className="font-semibold text-emerald-400">{analysis.scene_title}</h2>
+          <p className="text-sm text-white/80 mt-1">{analysis.narration}</p>
+          <p className="text-xs text-white/50 mt-2">
+            {analysis.pois.length} POI(s) found
+          </p>
+        </div>
+      )}
     </main>
   );
 }
